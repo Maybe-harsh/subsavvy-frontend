@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+// THE MAGIC FIX: Pointing your frontend to your live Render backend!
+const API_BASE_URL = 'https://subsavvy-backend.onrender.com';
 
 export const apiClient = axios.create({
     baseURL: API_BASE_URL,
