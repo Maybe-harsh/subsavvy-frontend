@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// THE MAGIC FIX: Pointing your frontend to your live Render backend!
 const API_BASE_URL = 'https://subsavvy-backend.onrender.com';
 
 export const apiClient = axios.create({
@@ -11,13 +10,10 @@ export const apiClient = axios.create({
 });
 
 // --- AXIOS INTERCEPTOR ---
-// This runs automatically before EVERY request sent from the frontend
 apiClient.interceptors.request.use(
     (config) => {
-        // Check if we have a token saved in the browser's local storage
         const token = localStorage.getItem('access_token');
         if (token) {
-            // If we do, attach it to the Authorization header
             config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
@@ -59,13 +55,11 @@ export const addSubscription = async (subscriptionData: {
     return response.data;
 };
 
-// --- AI ALERT FUNCTION ---
 export const getUserAlerts = async () => {
     const response = await apiClient.get('/users/me/alerts');
     return response.data;
 };
 
-// --- USAGE LOG FUNCTION (This was the missing piece!) ---
 export const logUsage = async (usageData: {
     subscription_id: string;
     date_logged: string;
@@ -75,7 +69,6 @@ export const logUsage = async (usageData: {
     return response.data;
 };
 
-// --- UPDATE & DELETE FUNCTIONS (NEW) ---
 export const updateSubscription = async (id: string, subscriptionData: {
     platform_name: string;
     cost: number;
@@ -92,6 +85,10 @@ export const deleteSubscription = async (id: string) => {
 };
 
 export const resetUsageLogs = async (subscriptionId: string) => {
-  const response = await apiClient.delete(`/subscriptions/${subscriptionId}/logs`);
-  return response.data;
+    const response = await apiClient.delete(`/subscriptions/${subscriptionId}/logs`);
+    return response.data;
 };
+
+// FIX: Exported API_BASE_URL so dashboard.tsx can use it for recommendations
+// instead of hardcoding http://127.0.0.1:8000
+export { API_BASE_URL };

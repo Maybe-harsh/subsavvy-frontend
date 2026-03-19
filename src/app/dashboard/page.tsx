@@ -6,7 +6,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip 
 } from 'recharts';
 import { Wallet, TrendingDown, Activity, Plus, LogOut, Trash2, Edit2, PlayCircle, RotateCcw, Film, Star, Play } from 'lucide-react';
-import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, logUsage, updateSubscription, deleteSubscription, resetUsageLogs } from '@/lib/api';
+import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, logUsage, updateSubscription, deleteSubscription, resetUsageLogs, API_BASE_URL } from '@/lib/api';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#0ea5e9'];
 
@@ -38,10 +38,12 @@ export default function Dashboard() {
       setUser(userData);
       setSubscriptions(subData);
       setAiAlerts(alertsData);
-      setLoading(false); 
+      setLoading(false);
 
+      // FIX: Use API_BASE_URL from api.ts instead of hardcoded http://127.0.0.1:8000
+      // This was broken in production (Vercel) since localhost doesn't exist there
       const token = localStorage.getItem('access_token');
-      fetch("http://127.0.0.1:8000/recommendations", {
+      fetch(`${API_BASE_URL}/recommendations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.json())
@@ -83,10 +85,10 @@ export default function Dashboard() {
     const isYearly = sub.billing_cycle?.toLowerCase() === 'yearly';
     if (isYearly) {
       yearlyProjection += sub.cost;
-      totalMonthlySpend += (sub.cost / 12); 
+      totalMonthlySpend += (sub.cost / 12);
     } else {
       totalMonthlySpend += sub.cost;
-      yearlyProjection += (sub.cost * 12); 
+      yearlyProjection += (sub.cost * 12);
     }
   });
 
@@ -125,7 +127,7 @@ export default function Dashboard() {
       else await addSubscription(payload);
       
       setIsModalOpen(false);
-      await refreshFinancialsOnly(); 
+      await refreshFinancialsOnly();
     } catch (err) {
       alert("Failed to save subscription.");
     } finally {
@@ -140,7 +142,7 @@ export default function Dashboard() {
     try {
       await deleteSubscription(editingId);
       setIsModalOpen(false);
-      await refreshFinancialsOnly(); 
+      await refreshFinancialsOnly();
     } catch (err) {
       alert("Failed to delete subscription.");
     } finally {
@@ -150,9 +152,9 @@ export default function Dashboard() {
 
   const handleSimulateWatchTime = async (subscriptionId: string) => {
     try {
-      const today = new Date().toISOString().split('T')[0]; 
-      await logUsage({ subscription_id: subscriptionId, date_logged: today, minutes_used: 300 }); 
-      await refreshFinancialsOnly(); 
+      const today = new Date().toISOString().split('T')[0];
+      await logUsage({ subscription_id: subscriptionId, date_logged: today, minutes_used: 300 });
+      await refreshFinancialsOnly();
     } catch (err) {
       alert("Failed to log time.");
     }
@@ -160,10 +162,10 @@ export default function Dashboard() {
 
   const handleResetTime = async (subscriptionId: string) => {
     try {
-      await resetUsageLogs(subscriptionId); 
-      await refreshFinancialsOnly(); 
+      await resetUsageLogs(subscriptionId);
+      await refreshFinancialsOnly();
     } catch (err) {
-      alert("Failed to reset time. Did you add the Python endpoint?");
+      alert("Failed to reset time.");
     }
   };
 
@@ -254,7 +256,6 @@ export default function Dashboard() {
                       <img src={show.image} alt={show.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
                       
-                      {/* NEW: CLICKABLE PROVIDER LOGOS WITH STOP-PROPAGATION */}
                       {show.providers && show.providers.length > 0 && (
                         <div className="absolute top-3 right-3 flex space-x-1.5 z-30">
                           {show.providers.map((prov: any, idx: number) => (
@@ -263,7 +264,7 @@ export default function Dashboard() {
                               href={show.watch_link || '#'}
                               target="_blank"
                               rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()} // <-- STOPS THE TRAILER FROM OPENING
+                              onClick={(e) => e.stopPropagation()}
                               className="transition-transform hover:scale-110 block"
                             >
                               <img 
