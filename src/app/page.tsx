@@ -20,7 +20,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-gray-100 font-sans selection:bg-indigo-500/30 relative">
+    <div className="bg-[#09090b] text-gray-100 font-sans selection:bg-indigo-500/30 relative">
 
       {/* ANIMATED BACKGROUND ORBS */}
       <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] md:w-[40vw] md:h-[40vw] bg-indigo-600/20 rounded-full blur-[120px] md:blur-[150px] pointer-events-none mix-blend-screen animate-pulse duration-[3000ms]"></div>
