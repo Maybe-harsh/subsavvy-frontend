@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://subsavvy-backend.onrender.com';
+// Professional environment variable routing. 
+// Uses Vercel's env variable if available, otherwise falls back to Render.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://subsavvy-backend.onrender.com';
 
 export const apiClient = axios.create({
     baseURL: API_BASE_URL,
@@ -10,6 +12,7 @@ export const apiClient = axios.create({
 });
 
 // --- AXIOS INTERCEPTOR ---
+// Automatically attaches the auth token to every request
 apiClient.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('access_token');
@@ -89,6 +92,10 @@ export const resetUsageLogs = async (subscriptionId: string) => {
     return response.data;
 };
 
-// FIX: Exported API_BASE_URL so dashboard.tsx can use it for recommendations
-// instead of hardcoding http://127.0.0.1:8000
+// --- AI RECOMMENDATIONS ---
+export const getRecommendations = async () => {
+    const response = await apiClient.get('/recommendations');
+    return response.data;
+};
+
 export { API_BASE_URL };

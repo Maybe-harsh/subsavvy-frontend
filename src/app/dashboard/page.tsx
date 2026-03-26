@@ -2,24 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip 
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip
 } from 'recharts';
 import { Wallet, TrendingDown, Activity, Plus, LogOut, Trash2, Edit2, PlayCircle, RotateCcw, Film, Star, Play } from 'lucide-react';
-import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, logUsage, updateSubscription, deleteSubscription, resetUsageLogs, API_BASE_URL } from '@/lib/api';
+import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, logUsage, updateSubscription, deleteSubscription, resetUsageLogs, getRecommendations } from '@/lib/api';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#0ea5e9'];
 
 export default function Dashboard() {
   const router = useRouter();
-  
+
   const [user, setUser] = useState<any>(null);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [aiAlerts, setAiAlerts] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   const [activeTrailer, setActiveTrailer] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,15 +40,10 @@ export default function Dashboard() {
       setAiAlerts(alertsData);
       setLoading(false);
 
-      // FIX: Use API_BASE_URL from api.ts instead of hardcoded http://127.0.0.1:8000
-      // This was broken in production (Vercel) since localhost doesn't exist there
-      const token = localStorage.getItem('access_token');
-      fetch(`${API_BASE_URL}/recommendations`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(recData => setRecommendations(recData))
-      .catch(err => console.error("TMDB fetch failed", err));
+      // Fetch recommendations silently in the background so it doesn't block the UI
+      getRecommendations()
+        .then(recData => setRecommendations(recData))
+        .catch(err => console.error("Recommendations fetch failed", err));
 
     } catch (err: any) {
       if (err.response?.status === 401) {
@@ -122,10 +117,11 @@ export default function Dashboard() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const payload = { ...newSub, cost: parseFloat(newSub.cost) };
+      // FIX: Added || 0 fallback to prevent NaN backend crashes if input is cleared
+      const payload = { ...newSub, cost: parseFloat(newSub.cost) || 0 };
       if (editingId) await updateSubscription(editingId, payload);
       else await addSubscription(payload);
-      
+
       setIsModalOpen(false);
       await refreshFinancialsOnly();
     } catch (err) {
@@ -171,7 +167,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#09090b] text-gray-100 pb-16 relative font-sans overflow-hidden flex flex-col">
-      
+
       <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-fuchsia-600/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen"></div>
 
@@ -214,7 +210,7 @@ export default function Dashboard() {
               </div>
               <h2 className="text-4xl font-black text-white">₹{totalMonthlySpend.toFixed(2)}</h2>
             </div>
-            
+
             <div className="bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-xl hover:bg-white/10 transition-all duration-300">
               <div className="flex items-center space-x-4 mb-4">
                 <div className="p-3 bg-fuchsia-500/20 text-fuchsia-400 rounded-2xl"><TrendingDown className="w-6 h-6"/></div>
@@ -255,11 +251,11 @@ export default function Dashboard() {
                     <div className="h-[320px] rounded-2xl overflow-hidden relative shadow-lg shadow-black/50 border border-white/5 bg-gray-900">
                       <img src={show.image} alt={show.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
-                      
+
                       {show.providers && show.providers.length > 0 && (
                         <div className="absolute top-3 right-3 flex space-x-1.5 z-30">
                           {show.providers.map((prov: any, idx: number) => (
-                            <a 
+                            <a
                               key={idx}
                               href={show.watch_link || '#'}
                               target="_blank"
@@ -267,9 +263,9 @@ export default function Dashboard() {
                               onClick={(e) => e.stopPropagation()}
                               className="transition-transform hover:scale-110 block"
                             >
-                              <img 
-                                src={prov.logo} 
-                                alt={prov.name} 
+                              <img
+                                src={prov.logo}
+                                alt={prov.name}
                                 title={`Watch on ${prov.name}`}
                                 className="w-7 h-7 rounded-lg shadow-md border border-white/20"
                               />
@@ -277,12 +273,12 @@ export default function Dashboard() {
                           ))}
                         </div>
                       )}
-                      
-                      <div 
+
+                      <div
                         className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
-                        onClick={() => 
-                          show.trailer 
-                            ? setActiveTrailer(show.trailer) 
+                        onClick={() =>
+                          show.trailer
+                            ? setActiveTrailer(show.trailer)
                             : window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(show.title + ' official trailer')}`, '_blank')
                         }
                       >
@@ -313,8 +309,8 @@ export default function Dashboard() {
                       <Pie data={chartData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" stroke="none">
                         {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                       </Pie>
-                      <RechartsTooltip 
-                        formatter={(value: number | undefined) => `₹${value ?? 0}`} 
+                      <RechartsTooltip
+                        formatter={(value: number | undefined) => `₹${value ?? 0}`}
                         contentStyle={{ backgroundColor: '#18181b', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                         itemStyle={{ color: '#fff' }}
                       />
@@ -334,7 +330,7 @@ export default function Dashboard() {
               <h3 className="text-lg font-bold text-white mb-4 flex items-center">
                 <span className="bg-indigo-500/20 text-indigo-400 p-1.5 rounded-lg mr-3">✨</span> AI Financial Insights
               </h3>
-              
+
               <div className="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar min-h-0 mb-4 border-b border-white/10 pb-6">
                 {aiAlerts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-2">
@@ -361,7 +357,7 @@ export default function Dashboard() {
                       <div key={index} className={`p-4 border rounded-2xl backdrop-blur-md shrink-0 transition-transform hover:-translate-y-1 duration-300 ${styles}`}>
                         <h4 className="font-bold text-sm mb-1 text-white">{alert.platform}</h4>
                         <p className="text-sm opacity-90 leading-relaxed mb-3">{alert.message}</p>
-                        
+
                         {alert.action_url && (
                           <a href={alert.action_url} target="_blank" rel="noopener noreferrer" className={`inline-block px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition-colors ${btnStyles}`}>
                             {alert.action_text}
@@ -382,8 +378,8 @@ export default function Dashboard() {
                     </span>
                   ) : (
                     user.taste_profile.map((genre: string, index: number) => (
-                      <span 
-                        key={index} 
+                      <span
+                        key={index}
                         className="text-xs font-bold text-white bg-gradient-to-r from-indigo-500/20 to-fuchsia-500/20 border border-white/10 px-4 py-2 rounded-full shadow-lg"
                       >
                         {genre}
@@ -402,7 +398,7 @@ export default function Dashboard() {
                 <Plus className="w-4 h-4" /> <span>Add Platform</span>
               </button>
             </div>
-            
+
             {subscriptions.length === 0 ? (
                <div className="bg-white/5 p-16 rounded-3xl border border-dashed border-white/20 text-center backdrop-blur-sm">
                 <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6"><Plus className="w-10 h-10 text-gray-400"/></div>
@@ -413,11 +409,11 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {subscriptions.map((sub: any) => {
                   const isYearly = sub.billing_cycle?.toLowerCase() === 'yearly';
-                  
+
                   return (
                     <div key={sub.id} className="bg-white/5 rounded-3xl border border-white/10 hover:border-indigo-500/50 transition-all duration-300 flex flex-col overflow-hidden group relative backdrop-blur-xl">
                       <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                      
+
                       <div className="p-6 flex-grow relative z-10">
                         <div className="flex justify-between items-start mb-6">
                           <h3 className="font-black text-2xl text-white tracking-tight">{sub.platform_name || sub.platform?.name}</h3>
@@ -436,7 +432,7 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="border-t border-white/10 bg-black/40 p-2 grid grid-cols-3 gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity relative z-10">
                         <button onClick={() => handleSimulateWatchTime(sub.id)} className="flex items-center justify-center space-x-1.5 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 text-gray-300 py-3 rounded-xl text-xs font-bold transition-colors">
                           <PlayCircle className="w-4 h-4" /> <span>Add</span>
@@ -461,7 +457,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 z-[100]">
           <div className="bg-[#18181b] border border-white/10 rounded-3xl shadow-2xl max-w-md w-full p-8 transform transition-all">
             <h2 className="text-2xl font-black text-white mb-6">{editingId ? 'Edit Subscription' : 'Add Platform'}</h2>
-            
+
             <form onSubmit={handleSaveSubscription} className="space-y-5">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Platform Name</label>
@@ -508,19 +504,19 @@ export default function Dashboard() {
 
       {activeTrailer && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 z-[200]">
-          <button 
+          <button
             onClick={() => setActiveTrailer(null)}
             className="absolute top-8 right-8 text-white/50 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md"
           >
             <Plus className="w-6 h-6 rotate-45" />
           </button>
-          
+
           <div className="w-full max-w-5xl aspect-video rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(99,102,241,0.2)] border border-white/10 bg-black relative">
              <div className="absolute inset-0 flex items-center justify-center -z-10">
                 <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
              </div>
-            <iframe 
-              src={activeTrailer} 
+            <iframe
+              src={activeTrailer}
               className="w-full h-full relative z-10"
               allow="autoplay; encrypted-media; fullscreen"
               allowFullScreen
