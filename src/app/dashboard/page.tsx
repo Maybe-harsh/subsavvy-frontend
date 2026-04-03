@@ -12,7 +12,7 @@ import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, l
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#0ea5e9'];
 
 // --- TRAKT CONFIGURATION ---
-const TRAKT_CLIENT_ID = "4e94d56cd7eb617230037061b3af9633434df0978c86ddf01719e2718e8c17f7"; 
+const TRAKT_CLIENT_ID = process.env.NEXT_PUBLIC_TRAKT_CLIENT_ID || ""; 
 const REDIRECT_URI = "https://subsavvy-frontend-virid.vercel.app/dashboard";
 const TRAKT_AUTH_URL = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${TRAKT_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 
@@ -65,6 +65,7 @@ function DashboardContent() {
   const [aiAlerts, setAiAlerts] = useState<Alert[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRecsLoading, setIsRecsLoading] = useState(true); // <-- NEW STATE FOR SPINNER
   const [error, setError] = useState('');
 
   const [activeTrailer, setActiveTrailer] = useState<string | null>(null);
@@ -87,9 +88,16 @@ function DashboardContent() {
       setAiAlerts(alertsData);
       setLoading(false);
 
+      // --- FETCH RECOMMENDATIONS WITH LOADING STATE ---
+      setIsRecsLoading(true);
       getRecommendations()
-        .then(recData => setRecommendations(recData))
-        .catch(err => console.error("Recommendations fetch failed", err));
+        .then(recData => {
+          // Safeguard in case backend returns { recommendations: [] } instead of just []
+          const data = recData?.recommendations || recData;
+          setRecommendations(Array.isArray(data) ? data : []);
+        })
+        .catch(err => console.error("Recommendations fetch failed", err))
+        .finally(() => setIsRecsLoading(false)); // Turn off spinner when done
 
     } catch (err: unknown) {
       const authError = err as { response?: { status?: number } };
@@ -300,10 +308,16 @@ function DashboardContent() {
             </div>
 
             <div className="flex space-x-4 overflow-x-auto pb-6 pt-2 custom-scrollbar relative z-10 snap-x min-h-[320px]">
-              {recommendations.length === 0 ? (
+              {/* FIXED: Check loading state first, then check empty state */}
+              {isRecsLoading ? (
                 <div className="flex flex-col items-center justify-center w-full py-12 text-gray-400 bg-white/5 rounded-2xl border border-dashed border-white/20">
                   <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
                   <p className="italic text-sm">Building library...</p>
+                </div>
+              ) : recommendations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center w-full py-16 text-gray-400 bg-white/5 rounded-2xl border border-dashed border-white/20">
+                  <p className="text-lg font-bold text-white mb-2">Your streaming DNA is still evolving 🧬</p>
+                  <p className="text-sm">Watch a few more shows for your AI engine to generate matches!</p>
                 </div>
               ) : (
                 recommendations.map((show) => (
@@ -342,7 +356,8 @@ function DashboardContent() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-xl lg:col-span-1 flex flex-col h-[420px]">
               <h3 className="text-lg font-bold text-white mb-6">Spend Distribution</h3>
-              <div className="flex-grow flex items-center justify-center min-h-0 relative">
+              {/* FIXED RECHARTS HEIGHT ERROR HERE */}
+              <div className="flex-grow flex items-center justify-center relative w-full h-full min-h-[250px]">
                 {subscriptions.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
