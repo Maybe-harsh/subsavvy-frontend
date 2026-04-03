@@ -12,7 +12,7 @@ import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, l
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#0ea5e9'];
 
 // --- TRAKT CONFIGURATION ---
-const TRAKT_CLIENT_ID = "YOUR_REAL_CLIENT_ID_HERE"; 
+const TRAKT_CLIENT_ID = "4e94d56cd7eb617230037061b3af9633434df0978c86ddf01719e2718e8c17f7"; 
 const REDIRECT_URI = "https://subsavvy-frontend-virid.vercel.app/dashboard";
 const TRAKT_AUTH_URL = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${TRAKT_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 
