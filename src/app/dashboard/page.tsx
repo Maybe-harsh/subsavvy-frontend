@@ -1,22 +1,70 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip
 } from 'recharts';
 import { Wallet, TrendingDown, Activity, Plus, LogOut, Trash2, Edit2, PlayCircle, RotateCcw, Film, Star, Play } from 'lucide-react';
-import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, logUsage, updateSubscription, deleteSubscription, resetUsageLogs, getRecommendations } from '@/lib/api';
+import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, logUsage, updateSubscription, deleteSubscription, resetUsageLogs, getRecommendations, apiClient } from '@/lib/api';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#0ea5e9'];
 
+// --- TRAKT CONFIGURATION ---
+const TRAKT_CLIENT_ID = "4e94d56cd7eb617230037061b3af9633434df0978c86ddf01719e2718e8c17f7"; // Replace with your real Client ID
+const REDIRECT_URI = "https://subsavvy-frontend-virid.vercel.app/dashboard";
+const TRAKT_AUTH_URL = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${TRAKT_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+
+// --- TYPESCRIPT INTERFACES ---
+interface User {
+  email?: string;
+  taste_profile?: string[];
+  trakt_access_token?: string;
+}
+
+interface Subscription {
+  id: string;
+  platform_name?: string;
+  platform?: { name: string };
+  cost: number;
+  billing_cycle: string;
+  next_billing_date: string;
+}
+
+interface Alert {
+  type: string;
+  platform: string;
+  message: string;
+  action_url?: string;
+  action_text?: string;
+}
+
+interface Provider {
+  name: string;
+  logo: string;
+}
+
+interface Recommendation {
+  id: string;
+  title: string;
+  image: string;
+  match: string;
+  genre: string;
+  trailer?: string;
+  watch_link?: string;
+  providers?: Provider[];
+}
+
 export default function Dashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [user, setUser] = useState<any>(null);
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
-  const [aiAlerts, setAiAlerts] = useState<any[]>([]);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  // Added proper Typescript types instead of 'any'
+  const [user, setUser] = useState<User | null>(null);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [aiAlerts, setAiAlerts] = useState<Alert[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -27,7 +75,8 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newSub, setNewSub] = useState({ platform_name: '', cost: '', billing_cycle: 'monthly', next_billing_date: '' });
 
-  const fetchDashboardData = async () => {
+  // Wrapped in useCallback to fix the missing dependency warning
+  const fetchDashboardData = useCallback(async () => {
     try {
       const [userData, subData, alertsData] = await Promise.all([
         getCurrentUser(),
@@ -40,13 +89,13 @@ export default function Dashboard() {
       setAiAlerts(alertsData);
       setLoading(false);
 
-      // Fetch recommendations silently in the background so it doesn't block the UI
       getRecommendations()
         .then(recData => setRecommendations(recData))
         .catch(err => console.error("Recommendations fetch failed", err));
 
-    } catch (err: any) {
-      if (err.response?.status === 401) {
+    } catch (err: unknown) {
+      const authError = err as { response?: { status?: number } };
+      if (authError.response?.status === 401) {
         localStorage.removeItem('access_token');
         router.push('/login');
       } else {
@@ -54,11 +103,25 @@ export default function Dashboard() {
         setLoading(false);
       }
     }
-  };
+  }, [router]);
+
+  // Handle Trakt OAuth Callback
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code) {
+      apiClient.post('/auth/trakt/callback', { code })
+        .then(() => {
+          alert("✅ Successfully connected to Trakt.tv!");
+          router.replace('/dashboard'); 
+          fetchDashboardData();
+        })
+        .catch(err => console.error("Trakt connection failed", err));
+    }
+  }, [searchParams, router, fetchDashboardData]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [router]);
+  }, [fetchDashboardData]);
 
   const refreshFinancialsOnly = async () => {
     try {
@@ -69,13 +132,12 @@ export default function Dashboard() {
       setSubscriptions(subData);
       setAiAlerts(alertsData);
     } catch(err) {
-      console.error("Failed to refresh financials");
+      console.error("Failed to refresh financials", err);
     }
   };
 
   let totalMonthlySpend = 0;
   let yearlyProjection = 0;
-
   subscriptions.forEach(sub => {
     const isYearly = sub.billing_cycle?.toLowerCase() === 'yearly';
     if (isYearly) {
@@ -102,7 +164,7 @@ export default function Dashboard() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (sub: any) => {
+  const openEditModal = (sub: Subscription) => {
     setEditingId(sub.id);
     setNewSub({
       platform_name: sub.platform_name || sub.platform?.name || '',
@@ -117,14 +179,13 @@ export default function Dashboard() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // FIX: Added || 0 fallback to prevent NaN backend crashes if input is cleared
       const payload = { ...newSub, cost: parseFloat(newSub.cost) || 0 };
       if (editingId) await updateSubscription(editingId, payload);
       else await addSubscription(payload);
-
       setIsModalOpen(false);
       await refreshFinancialsOnly();
     } catch (err) {
+      console.error(err);
       alert("Failed to save subscription.");
     } finally {
       setIsSubmitting(false);
@@ -140,6 +201,7 @@ export default function Dashboard() {
       setIsModalOpen(false);
       await refreshFinancialsOnly();
     } catch (err) {
+      console.error(err);
       alert("Failed to delete subscription.");
     } finally {
       setIsSubmitting(false);
@@ -152,6 +214,7 @@ export default function Dashboard() {
       await logUsage({ subscription_id: subscriptionId, date_logged: today, minutes_used: 300 });
       await refreshFinancialsOnly();
     } catch (err) {
+      console.error(err);
       alert("Failed to log time.");
     }
   };
@@ -161,6 +224,7 @@ export default function Dashboard() {
       await resetUsageLogs(subscriptionId);
       await refreshFinancialsOnly();
     } catch (err) {
+      console.error(err);
       alert("Failed to reset time.");
     }
   };
@@ -254,7 +318,7 @@ export default function Dashboard() {
 
                       {show.providers && show.providers.length > 0 && (
                         <div className="absolute top-3 right-3 flex space-x-1.5 z-30">
-                          {show.providers.map((prov: any, idx: number) => (
+                          {show.providers.map((prov: Provider, idx: number) => (
                             <a
                               key={idx}
                               href={show.watch_link || '#'}
@@ -371,7 +435,7 @@ export default function Dashboard() {
 
               <div>
                 <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Your Streaming DNA</h4>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mb-6">
                   {(!user?.taste_profile || user.taste_profile.length === 0) ? (
                     <span className="text-sm text-gray-500 italic bg-white/5 px-4 py-2 rounded-xl border border-white/10">
                       Watch more shows to build your profile...
@@ -386,6 +450,24 @@ export default function Dashboard() {
                       </span>
                     ))
                   )}
+                </div>
+
+                <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center">
+                        <PlayCircle className="w-4 h-4 mr-2 text-indigo-500" /> 
+                        Smart TV Tracking
+                      </h4>
+                      <p className="text-[10px] text-gray-400 mt-1">Connect Trakt.tv to sync living room watch time.</p>
+                    </div>
+                    <a 
+                      href={TRAKT_AUTH_URL}
+                      className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-[10px] font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20"
+                    >
+                      {user?.trakt_access_token ? 'Re-connect' : 'Connect Now'}
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -407,7 +489,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {subscriptions.map((sub: any) => {
+                {subscriptions.map((sub: Subscription) => {
                   const isYearly = sub.billing_cycle?.toLowerCase() === 'yearly';
 
                   return (
