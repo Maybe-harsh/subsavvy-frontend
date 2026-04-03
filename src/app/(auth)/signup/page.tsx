@@ -47,8 +47,9 @@ export default function SignupPage() {
         router.push('/dashboard');
       }, 1000);
 
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create account. Please try again.');
+   } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { detail?: string } } };
+      setError(apiError.response?.data?.detail || 'Failed to create account. Please try again.');
       setIsLoading(false);
     }
   };

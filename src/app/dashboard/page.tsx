@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip
@@ -12,7 +12,7 @@ import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, l
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#0ea5e9'];
 
 // --- TRAKT CONFIGURATION ---
-const TRAKT_CLIENT_ID = "4e94d56cd7eb617230037061b3af9633434df0978c86ddf01719e2718e8c17f7"; // Replace with your real Client ID
+const TRAKT_CLIENT_ID = "YOUR_PASTED_CLIENT_ID"; // Replace with your real Client ID
 const REDIRECT_URI = "https://subsavvy-frontend-virid.vercel.app/dashboard";
 const TRAKT_AUTH_URL = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${TRAKT_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 
@@ -56,11 +56,11 @@ interface Recommendation {
   providers?: Provider[];
 }
 
-export default function Dashboard() {
+// 1. WE RENAMED THIS FROM 'Dashboard' TO 'DashboardContent'
+function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Added proper Typescript types instead of 'any'
   const [user, setUser] = useState<User | null>(null);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [aiAlerts, setAiAlerts] = useState<Alert[]>([]);
@@ -75,7 +75,6 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newSub, setNewSub] = useState({ platform_name: '', cost: '', billing_cycle: 'monthly', next_billing_date: '' });
 
-  // Wrapped in useCallback to fix the missing dependency warning
   const fetchDashboardData = useCallback(async () => {
     try {
       const [userData, subData, alertsData] = await Promise.all([
@@ -614,5 +613,19 @@ export default function Dashboard() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
       `}} />
     </div>
+  );
+}
+
+// 2. THIS IS THE BRAND NEW SUSPENSE WRAPPER FOR VERCEL
+export default function Dashboard() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-400 font-medium tracking-widest uppercase text-sm animate-pulse">Loading Application...</p>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
