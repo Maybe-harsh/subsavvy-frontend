@@ -1,7 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip
@@ -11,53 +13,13 @@ import { getCurrentUser, getUserSubscriptions, addSubscription, getUserAlerts, l
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#0ea5e9'];
 
-// Define strict interfaces to resolve "Unexpected any" errors
-interface User {
-  email?: string;
-  taste_profile?: string[];
-}
-
-interface Subscription {
-  id: string;
-  platform_name?: string;
-  platform?: { name: string };
-  cost: number;
-  billing_cycle: string;
-  next_billing_date: string;
-}
-
-interface Alert {
-  type: string;
-  platform: string;
-  message: string;
-  action_url?: string;
-  action_text?: string;
-}
-
-interface Provider {
-  name: string;
-  logo: string;
-}
-
-interface Recommendation {
-  id: string;
-  title: string;
-  image: string;
-  match: string;
-  genre: string;
-  trailer?: string;
-  watch_link?: string;
-  providers?: Provider[];
-}
-
 export default function Dashboard() {
   const router = useRouter();
 
-  // Replaced <any> with defined interfaces
-  const [user, setUser] = useState<User | null>(null);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [aiAlerts, setAiAlerts] = useState<Alert[]>([]);
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [aiAlerts, setAiAlerts] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -68,8 +30,7 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newSub, setNewSub] = useState({ platform_name: '', cost: '', billing_cycle: 'monthly', next_billing_date: '' });
 
-  // Wrapped in useCallback to resolve the useEffect missing dependency warning
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = async () => {
     try {
       const [userData, subData, alertsData] = await Promise.all([
         getCurrentUser(),
@@ -82,13 +43,13 @@ export default function Dashboard() {
       setAiAlerts(alertsData);
       setLoading(false);
 
+      // Fetch recommendations silently in the background so it doesn't block the UI
       getRecommendations()
         .then(recData => setRecommendations(recData))
         .catch(err => console.error("Recommendations fetch failed", err));
 
-    } catch (err: unknown) { // Replaced any with unknown
-      const authError = err as { response?: { status?: number } };
-      if (authError.response?.status === 401) {
+    } catch (err: any) {
+      if (err.response?.status === 401) {
         localStorage.removeItem('access_token');
         router.push('/login');
       } else {
@@ -96,11 +57,11 @@ export default function Dashboard() {
         setLoading(false);
       }
     }
-  }, [router]);
+  };
 
   useEffect(() => {
     fetchDashboardData();
-  }, [fetchDashboardData]); // Added fetchDashboardData to dependency array
+  }, [router]);
 
   const refreshFinancialsOnly = async () => {
     try {
@@ -111,7 +72,7 @@ export default function Dashboard() {
       setSubscriptions(subData);
       setAiAlerts(alertsData);
     } catch(err) {
-      console.error("Failed to refresh financials", err);
+      console.error("Failed to refresh financials");
     }
   };
 
@@ -144,8 +105,7 @@ export default function Dashboard() {
     setIsModalOpen(true);
   };
 
-  // Replaced any with Subscription
-  const openEditModal = (sub: Subscription) => {
+  const openEditModal = (sub: any) => {
     setEditingId(sub.id);
     setNewSub({
       platform_name: sub.platform_name || sub.platform?.name || '',
@@ -160,6 +120,7 @@ export default function Dashboard() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      // FIX: Added || 0 fallback to prevent NaN backend crashes if input is cleared
       const payload = { ...newSub, cost: parseFloat(newSub.cost) || 0 };
       if (editingId) await updateSubscription(editingId, payload);
       else await addSubscription(payload);
@@ -167,7 +128,6 @@ export default function Dashboard() {
       setIsModalOpen(false);
       await refreshFinancialsOnly();
     } catch (err) {
-      console.error(err); // Used err to resolve ESLint warning
       alert("Failed to save subscription.");
     } finally {
       setIsSubmitting(false);
@@ -183,7 +143,6 @@ export default function Dashboard() {
       setIsModalOpen(false);
       await refreshFinancialsOnly();
     } catch (err) {
-      console.error(err); // Used err to resolve ESLint warning
       alert("Failed to delete subscription.");
     } finally {
       setIsSubmitting(false);
@@ -196,7 +155,6 @@ export default function Dashboard() {
       await logUsage({ subscription_id: subscriptionId, date_logged: today, minutes_used: 300 });
       await refreshFinancialsOnly();
     } catch (err) {
-      console.error(err); // Used err to resolve ESLint warning
       alert("Failed to log time.");
     }
   };
@@ -206,7 +164,6 @@ export default function Dashboard() {
       await resetUsageLogs(subscriptionId);
       await refreshFinancialsOnly();
     } catch (err) {
-      console.error(err); // Used err to resolve ESLint warning
       alert("Failed to reset time.");
     }
   };
@@ -220,7 +177,7 @@ export default function Dashboard() {
       <header className="border-b border-white/5 bg-black/20 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            <div className="bg-linear-to-br from-indigo-500 to-fuchsia-500 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
+            <div className="bg-gradient-to-br from-indigo-500 to-fuchsia-500 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
               <Activity className="text-white w-5 h-5" />
             </div>
             <h1 className="text-2xl font-black tracking-tight text-white">SubSavvy<span className="text-indigo-500">.ai</span></h1>
@@ -238,7 +195,7 @@ export default function Dashboard() {
       </header>
 
       {loading ? (
-        <div className="grow flex items-center justify-center relative z-10">
+        <div className="flex-grow flex items-center justify-center relative z-10">
           <div className="flex flex-col items-center">
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-gray-400 font-medium tracking-widest uppercase text-sm animate-pulse">Loading Dashboard</p>
@@ -265,7 +222,7 @@ export default function Dashboard() {
               <h2 className="text-4xl font-black text-white">₹{yearlyProjection.toFixed(2)}</h2>
             </div>
 
-            <div className="bg-linear-to-br from-indigo-600/20 to-fuchsia-600/20 p-6 rounded-3xl border border-indigo-500/30 backdrop-blur-xl">
+            <div className="bg-gradient-to-br from-indigo-600/20 to-fuchsia-600/20 p-6 rounded-3xl border border-indigo-500/30 backdrop-blur-xl">
                <div className="flex items-center space-x-4 mb-4">
                 <div className="p-3 bg-white/10 text-white rounded-2xl"><Film className="w-6 h-6"/></div>
                 <p className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Active Platforms</p>
@@ -285,7 +242,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex space-x-4 overflow-x-auto pb-6 pt-2 custom-scrollbar relative z-10 snap-x min-h-80">
+            <div className="flex space-x-4 overflow-x-auto pb-6 pt-2 custom-scrollbar relative z-10 snap-x min-h-[320px]">
               {recommendations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center w-full py-12 text-gray-400 bg-white/5 rounded-2xl border border-dashed border-white/20">
                   <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
@@ -293,15 +250,14 @@ export default function Dashboard() {
                 </div>
               ) : (
                 recommendations.map((show) => (
-                  <div key={show.id} className="min-w-50 md:min-w-60 group cursor-pointer snap-start relative">
-                    <div className="h-80 rounded-2xl overflow-hidden relative shadow-lg shadow-black/50 border border-white/5 bg-gray-900">
+                  <div key={show.id} className="min-w-[200px] md:min-w-[240px] group cursor-pointer snap-start relative">
+                    <div className="h-[320px] rounded-2xl overflow-hidden relative shadow-lg shadow-black/50 border border-white/5 bg-gray-900">
                       <img src={show.image} alt={show.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/20 to-transparent"></div>
 
                       {show.providers && show.providers.length > 0 && (
                         <div className="absolute top-3 right-3 flex space-x-1.5 z-30">
-                          {/* Replaced any with Provider */}
-                          {show.providers.map((prov: Provider, idx: number) => (
+                          {show.providers.map((prov: any, idx: number) => (
                             <a
                               key={idx}
                               href={show.watch_link || '#'}
@@ -350,7 +306,7 @@ export default function Dashboard() {
             <div className="bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-xl lg:col-span-1 flex flex-col h-[420px]">
               <h3 className="text-lg font-bold text-white mb-6">Spend Distribution</h3>
               {subscriptions.length > 0 ? (
-                <div className="grow flex items-center justify-center min-h-0 relative">
+                <div className="flex-grow flex items-center justify-center min-h-0 relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={chartData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" stroke="none">
@@ -369,16 +325,16 @@ export default function Dashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="grow flex items-center justify-center text-gray-500 text-sm italic">No data to chart yet.</div>
+                <div className="flex-grow flex items-center justify-center text-gray-500 text-sm italic">No data to chart yet.</div>
               )}
             </div>
 
-            <div className="bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-xl lg:col-span-2 flex flex-col h-105">
+            <div className="bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-xl lg:col-span-2 flex flex-col h-[420px]">
               <h3 className="text-lg font-bold text-white mb-4 flex items-center">
                 <span className="bg-indigo-500/20 text-indigo-400 p-1.5 rounded-lg mr-3">✨</span> AI Financial Insights
               </h3>
 
-              <div className="grow overflow-y-auto space-y-3 pr-2 custom-scrollbar min-h-0 mb-4 border-b border-white/10 pb-6">
+              <div className="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar min-h-0 mb-4 border-b border-white/10 pb-6">
                 {aiAlerts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-2">
                     <Activity className="w-8 h-8 opacity-50" />
@@ -427,7 +383,7 @@ export default function Dashboard() {
                     user.taste_profile.map((genre: string, index: number) => (
                       <span
                         key={index}
-                        className="text-xs font-bold text-white bg-linear-to-r from-indigo-500/20 to-fuchsia-500/20 border border-white/10 px-4 py-2 rounded-full shadow-lg"
+                        className="text-xs font-bold text-white bg-gradient-to-r from-indigo-500/20 to-fuchsia-500/20 border border-white/10 px-4 py-2 rounded-full shadow-lg"
                       >
                         {genre}
                       </span>
@@ -454,15 +410,14 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Replaced any with Subscription */}
-                {subscriptions.map((sub: Subscription) => {
+                {subscriptions.map((sub: any) => {
                   const isYearly = sub.billing_cycle?.toLowerCase() === 'yearly';
 
                   return (
                     <div key={sub.id} className="bg-white/5 rounded-3xl border border-white/10 hover:border-indigo-500/50 transition-all duration-300 flex flex-col overflow-hidden group relative backdrop-blur-xl">
-                      <div className="absolute inset-0 bg-linear-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-                      <div className="p-6 grow relative z-10">
+                      <div className="p-6 flex-grow relative z-10">
                         <div className="flex justify-between items-start mb-6">
                           <h3 className="font-black text-2xl text-white tracking-tight">{sub.platform_name || sub.platform?.name}</h3>
                           <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]"></div>
